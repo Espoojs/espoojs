@@ -4,7 +4,6 @@ import {
   catchError,
   distinctUntilChanged,
   filter,
-  finalize,
   map,
   share,
   takeUntil,
@@ -113,21 +112,32 @@ export class TaskStore extends StoreSubject<TaskStoreState> {
     super({ tasks: new Map(), nodesByTag: new Map() });
   }
 
-  updateNode(id: string, update: Partial<TaskNode<unknown, any>>) {
+  hasNode(id: string) {
+    return this.value.tasks.has(id);
+  }
+
+  createNode(node: TaskNode) {
+    this.value.tasks.set(node.id, node);
+
+    this.updateNode(node.id, node, true);
+  }
+
+  updateNode(id: string, update: Partial<TaskNode<unknown, any>>, force = false) {
     const tasks = new Map(this.value.tasks);
     const currentNode = tasks.get(id);
 
     // shallow check
     if (
+      force === false &&
       Object.keys(update).some((key) => {
         return (
           currentNode &&
-          Object.is(
+          !Object.is(
             (currentNode as Record<string, unknown>)[key],
             (update as Record<string, unknown>)[key]
           )
         );
-      })
+      }) === false
     )
       return;
 
@@ -151,7 +161,7 @@ export class TaskStore extends StoreSubject<TaskStoreState> {
   }
 
   subscribeTaskById(id: string) {
-    return this.pipe(map(({ tasks }) => tasks.get(id), distinctUntilChanged()));
+    return this.pipe(map(({ tasks }) => tasks.get(id)), distinctUntilChanged());
   }
 
   subscribeTaskByTagName(
@@ -212,15 +222,6 @@ export class TaskStore extends StoreSubject<TaskStoreState> {
         });
 
         return stream$.pipe(
-          finalize(() => {
-            this._instance.updateNode(atom.getId(), {
-              status: "completed",
-            });
-          }),
-          catchError((err, caught) => {
-            this._instance.updateNode(atom.getId(), { error: err });
-            return caught;
-          }),
           takeUntil(
             this.forceCancelSubject.pipe(
               filter((incomingId) => {
@@ -231,7 +232,16 @@ export class TaskStore extends StoreSubject<TaskStoreState> {
           map((response) => {
             this._instance.updateNode(atom.getId(), { result: response });
             return response;
+          }),
+          catchError((err) => {
+            this._instance.updateNode(atom.getId(), { error: err });
+            throw err;
           })
+          // finalize(() => {
+          //   this._instance.updateNode(atom.getId(), {
+          //     status: "completed",
+          //   });
+          // })
         );
       },
     };
