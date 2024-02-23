@@ -1,6 +1,6 @@
 {
   "name": "@espoojs/atom",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "type": "module",
   "author": "Cenk Cetinkaya <mail@cenkcetinkaya.com>",
   "publishConfig": {
@@ -10,7 +10,6 @@
     "dev": "tsc --watch",
     "build": "rimraf dist && tsc",
     "test": "vitest",
-    "postinstall": "pnpm run build",
     "prepare": "pnpm run build"
   },
   "files": [
